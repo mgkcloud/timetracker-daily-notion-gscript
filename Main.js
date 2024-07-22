@@ -3,7 +3,7 @@ function main() {
   try {
     const config = getConfig();
     const headers = getNotionHeaders(config.notionApiKey);
-    logger('debug', `Notion API headers: ${JSON.stringify(headers)}`);
+    // logger('debug', `Notion API headers: ${JSON.stringify(headers)}`);
     
     const databaseConfig = fetchDatabaseConfigFromNotion(config.notionApiKey, config.configDatabaseId);
     config.databaseConfig = databaseConfig;
@@ -13,10 +13,10 @@ function main() {
     const summaryFileId = "1M_B1qSFZEwBarP1iwLdcRWHEExiWlbr-";
     processSummaryCSV(summaryFileId, config, headers);
     
-    logger('info', "Notion database updated successfully!");
-    notifyUser("Notion database updated successfully!");
+    // logger('info', "Notion database updated successfully!");
+    // notifyUser("Notion database updated successfully!");
   } catch (e) {
-    logger('error', `An error occurred: ${e.toString()}`);
+    // logger('error', `An error occurred: ${e.toString()}`);
     notifyUser(`An error occurred: ${e.toString()}`);
   }
 }
@@ -37,18 +37,26 @@ function readTasksFromCSV(fileId) {
   const rows = Utilities.parseCsv(csvContent);
   const tasks = [];
 
-  // Skip the first 6 rows (headers and metadata)
-  rows.slice(6).forEach(row => {
-    if (row[0] && !row[0].startsWith("#")) {
-      const [taskName, durationStr, percentage, taskId] = row; // Assuming TaskID is the 4th column
-      const duration = parseDuration(durationStr);
-      tasks.push({ name: taskName, duration: duration, taskId: taskId });
-      logger('debug', `Task: ${taskName}, Duration: ${durationStr}, Parsed Duration: ${duration}, TaskID: ${taskId}`);
-    }
-  });
 
-  logger('info', `Total tasks found: ${tasks.length}`);
-  return tasks;
+rows.slice(6).forEach((row, rowIndex) => { // Include rowIndex
+  if (row[0] && !row[0].startsWith("#")) {
+    const [taskName, durationStr, percentage, taskId] = row; 
+    const duration = parseDuration(durationStr);
+
+    // Generate and store TaskID if not present
+    const newTaskId = taskId || generateTaskId();
+    if (!taskId) {
+      rows[rowIndex + 6][3] = newTaskId; // Update the CSV data in memory
+    }
+
+    tasks.push({ name: taskName, duration: duration, taskId: newTaskId });
+    logger('debug', `Task: ${taskName}, Duration: ${durationStr}, Parsed Duration: ${duration}, TaskID: ${newTaskId}`);
+  }
+});
+
+logger('info', `Total tasks found: ${tasks.length}`);
+return tasks;
+
 }
 
 // Group tasks by database based on categorization

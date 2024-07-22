@@ -38,6 +38,24 @@ function fetchDatabaseConfigFromNotion(notionApiKey, configDatabaseId) {
   });
 }
 
+function fetchBillingDate(databaseId, headers) {
+  const url = `https://api.notion.com/v1/databases/${databaseId}`;
+  const options = {
+    method: 'get',
+    headers: headers,
+    muteHttpExceptions: true
+  };
+
+  return retryOperation(() => {
+    const response = UrlFetchApp.fetch(url, options);
+    const data = JSON.parse(response.getContentText());
+    const billingDate = data.properties['Billing Date'].date.start; // Assuming "Billing Date" is the property name
+    logger('info', `Billing Date for database ${databaseId}: ${billingDate}`);
+    return billingDate;
+  });
+}
+
+
 function getExistingTasks(date, databaseId, headers) {
   const url = `https://api.notion.com/v1/databases/${databaseId}/query`;
   const payload = {
@@ -75,8 +93,12 @@ function updateNotionTask(taskName, duration, date, category, client, databaseId
       // Update existing task
       const pageId = matchingTask.id;
       const url = `https://api.notion.com/v1/pages/${pageId}`;
-      const existingDuration = matchingTask.properties.Duration.number || 0;
-      const newDuration = roundToQuarterHour(existingDuration + duration);
+      // const existingDuration = matchingTask.properties.Duration.number || 0;
+      const newDuration = roundToQuarterHour(duration);
+      const billingDate = fetchBillingDate(databaseId, headers);
+      const durationMonth = calculateDurationMonth(date, billingDate, duration);
+
+
       const data = {
         properties: {
           Duration: { number: newDuration },
@@ -85,6 +107,9 @@ function updateNotionTask(taskName, duration, date, category, client, databaseId
           TaskID: { rich_text: [{ text: { content: matchingTask.properties.TaskID.rich_text[0]?.text.content || taskId || generateTaskId() } }] }
         }
       };
+
+      data.properties['Duration (month)'] = { number: durationMonth };
+
       
       const options = {
         method: 'patch',
